@@ -74,7 +74,8 @@ public class MainActivity extends AppCompatActivity {
                 try {
                     fOut = openFileOutput("file.txt",Context.MODE_PRIVATE);
                     OutputStreamWriter osw = new OutputStreamWriter(fOut);
-                    osw.write("File Created");
+                    for(int i = 0; i < list.size() ; i++)
+                        osw.write(list.get(i).getId() + ",");
                     osw.flush();
                     osw.close();
                     Toast.makeText(MainActivity.this, "HOGAYA", Toast.LENGTH_SHORT).show();

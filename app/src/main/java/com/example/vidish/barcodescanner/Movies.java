@@ -34,4 +34,8 @@ public class Movies {
         this.torrent1080 = torrent1080;
         this.torrent3d = torrent3d;
     }
+
+    public String getId() {
+        return id;
+    }
 }
