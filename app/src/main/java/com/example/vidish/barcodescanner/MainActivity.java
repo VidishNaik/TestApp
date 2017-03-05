@@ -12,6 +12,10 @@ import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import java.io.BufferedReader;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
@@ -23,18 +27,24 @@ import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.Charset;
+import java.util.ArrayList;
+import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
 
     TextView textView;
     int i;
     TestAsyncTask testAsyncTask;
+    List<Movies> list;
+    final int movies_count = 6020;
+    int count = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         i = 1;
+        list = new ArrayList<>();
 
         Button scan = (Button) findViewById(R.id.scan);
         Button create = (Button) findViewById(R.id.create);
@@ -133,7 +143,16 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         protected void onPostExecute(String jsonResponse) {
-            textView.setText(jsonResponse);
+            extractMovies(jsonResponse);
+            count = count + 50;
+            if(count < movies_count)
+            {
+                i++;
+                testAsyncTask = new TestAsyncTask();
+                testAsyncTask.execute("https://yts.ag/api/v2/list_movies.json?limit=50&page="+i);
+            }
+            else
+                textView.setText("Size = " + list.size() );
         }
     }
 
@@ -178,5 +197,64 @@ public class MainActivity extends AppCompatActivity {
             }
         }
         return output.toString();
+    }
+
+    private void extractMovies(String jsonResponse)
+    {
+        try {
+
+            JSONObject rootObject = new JSONObject(jsonResponse);
+            JSONObject data=rootObject.optJSONObject("data");
+            JSONArray movies = data.optJSONArray("movies");
+            for(int i = 0 ; i < movies.length() ; i++)
+            {
+                JSONObject arrayObject=movies.getJSONObject(i);
+                String id = arrayObject.getString("id");
+                String imdb = arrayObject.getString("imdb_code");
+                String title = arrayObject.getString("title");
+                String slug = arrayObject.getString("slug");
+                String rating = arrayObject.getString("rating");
+                String runtime = arrayObject.getString("runtime");
+                JSONArray genre = arrayObject.getJSONArray("genres");
+                String[] genres = new String[genre.length()];
+                for(int j = 0; j < genres.length ; j++)
+                {
+                    genres[j] = (String) genre.get(j);
+                }
+                String description = arrayObject.getString("description_full");
+                String youtube = arrayObject.getString("yt_trailer_code");
+                String cover = arrayObject.getString("large_cover_image");
+                JSONArray torrents = arrayObject.getJSONArray("torrents");
+                List<Torrent> torrentList = new ArrayList<>();
+                for(int j = 0 ; j < torrents.length() ; j++)
+                {
+                    JSONObject torobj = torrents.getJSONObject(j);
+                    String url = torobj.getString("url");
+                    String hash = torobj.getString("hash");
+                    String quality = torobj.getString("quality");
+                    String seeds = torobj.getString("seeds");
+                    String peers = torobj.getString("peers");
+                    String size = torobj.getString("size");
+                    torrentList.add(new Torrent(url,hash,quality,seeds,peers,size));
+                }
+                if(torrentList.size() == 1)
+                {
+                    list.add(new Movies(id,imdb,title,slug,rating,runtime,genres,description,youtube,cover,torrentList.get(0),null,null));
+                }
+                else if(torrentList.size() == 2)
+                {
+                    list.add(new Movies(id,imdb,title,slug,rating,runtime,genres,description,youtube,cover,torrentList.get(0),torrentList.get(1),null));
+                }
+                else if(torrentList.size() == 3)
+                {
+                    list.add(new Movies(id,imdb,title,slug,rating,runtime,genres,description,youtube,cover,torrentList.get(0),torrentList.get(1),torrentList.get(2)));
+                }
+                Log.v("MainActivity","ID = "+ id);
+            }
+
+
+        } catch (JSONException e) {
+            Log.v("MainActivity","JSONError " + e);
+        }
     }
 }
