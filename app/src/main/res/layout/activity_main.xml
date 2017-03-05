@@ -10,24 +10,6 @@
     android:orientation="vertical"
     tools:context="com.example.vidish.barcodescanner.MainActivity">
 
-    <Button
-        android:id="@+id/button_on"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Turn Hotspot On" />
-
-    <Button
-        android:id="@+id/button_off"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Turn Hotspot Off"/>
-
-    <Button
-        android:id="@+id/button_connect"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Connect to Hotspot"/>
-
     <TextView
         android:id="@+id/text"
         android:layout_width="match_parent"

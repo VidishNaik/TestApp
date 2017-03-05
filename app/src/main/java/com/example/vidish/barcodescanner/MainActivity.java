@@ -2,22 +2,15 @@ package com.example.vidish.barcodescanner;
 
 import android.content.Context;
 import android.content.Intent;
-import android.net.Uri;
-import android.net.wifi.WifiManager;
 import android.os.AsyncTask;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
-import android.provider.Settings;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
-
-import com.google.zxing.integration.android.IntentIntegrator;
-import com.google.zxing.integration.android.IntentResult;
 
 import java.io.BufferedReader;
 import java.io.FileNotFoundException;
@@ -34,15 +27,15 @@ import java.nio.charset.Charset;
 public class MainActivity extends AppCompatActivity {
 
     TextView textView;
+    int i;
+    TestAsyncTask testAsyncTask;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        i = 1;
 
-        Button buttonOn = (Button) findViewById(R.id.button_on);
-        Button buttonOff = (Button) findViewById(R.id.button_off);
-        Button buttonConnect = (Button) findViewById(R.id.button_connect);
         Button scan = (Button) findViewById(R.id.scan);
         Button create = (Button) findViewById(R.id.create);
         Button show = (Button) findViewById(R.id.show);
@@ -51,57 +44,16 @@ public class MainActivity extends AppCompatActivity {
         {
             Toast.makeText(MainActivity.this, getIntent().getData().getPathSegments().get(1) + "", Toast.LENGTH_SHORT).show();
         }
-        final String magnet;
-        magnet = "magnet:?xt=urn:btih:33EA48144377098EECD8F5A1431BC98A60F5B3A8&dn=A Street Cat Named Bob (2016)" +
-                "&tr=udp://open.demonii.com:1337/announce&tr=udp://tracker.openbittorrent.com:80";
+//        final String magnet;
+//        magnet = "magnet:?xt=urn:btih:33EA48144377098EECD8F5A1431BC98A60F5B3A8&dn=A Street Cat Named Bob (2016)" +
+//                "&tr=udp://open.demonii.com:1337/announce&tr=udp://tracker.openbittorrent.com:80";
 
 
-        final WifiHotspotController wifiHotspotController = new WifiHotspotController();
-        buttonOn.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    if (!Settings.System.canWrite(getApplicationContext())) {
-                        Intent intent = new Intent(android.provider.Settings.ACTION_MANAGE_WRITE_SETTINGS);
-                        intent.setData(Uri.parse("package:" + getPackageName()));
-                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                        startActivity(intent);
-                    }
-                }
-                //turnOnOffHotspot(getApplicationContext(),true);
-                wifiHotspotController.turnHotspotOn(getApplicationContext());
-                Log.v("MainActivity", "turnOnOffHotspot called");
-            }
-        });
-        buttonOff.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                //Toast.makeText(MainActivity.this, "Add this later", Toast.LENGTH_SHORT).show();
-                IntentIntegrator integrator = new IntentIntegrator(MainActivity.this);
-                integrator.setDesiredBarcodeFormats(IntentIntegrator.QR_CODE_TYPES);
-                integrator.setPrompt("Scan the barcode on your ID");
-                integrator.initiateScan();
-            }
-        });
-        buttonConnect.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                WifiHotspotController.connectToHotspot(MainActivity.this);
-            }
-        });
         scan.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                Toast.makeText(MainActivity.this, "SCAN", Toast.LENGTH_SHORT).show();
-                Intent i = new Intent();
-                i.setAction(Intent.ACTION_VIEW)
-                        .addCategory(Intent.CATEGORY_DEFAULT)
-                        .putExtra(Intent.EXTRA_TEXT, magnet)
-                        .setData(Uri.parse(magnet));
-                if(i.resolveActivity(getPackageManager())!= null)
-                {
-                    startActivity(i);
-                }
+                testAsyncTask = new TestAsyncTask();
+                testAsyncTask.execute("https://yts.ag/api/v2/list_movies.json?limit=50&page="+i);
             }
         });
 
@@ -154,35 +106,10 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-
-        IntentResult scanningResult = IntentIntegrator.parseActivityResult(requestCode, resultCode, data);
-
-        textView.setText(scanningResult.getContents());
-    }
-
-    public static void turnOnOffHotspot(Context context, boolean isTurnToOn) {
-        WifiManager wifiManager = (WifiManager) context
-                .getSystemService(Context.WIFI_SERVICE);
-        WifiApControl apControl = WifiApControl.getApControl(wifiManager);
-        if (apControl != null) {
-
-            // TURN OFF YOUR WIFI BEFORE ENABLE HOTSPOT
-            //if (isWifiOn(context) && isTurnToOn) {
-            //turnOnOffWifi(context, false);
-            //}
-
-            apControl.setWifiApEnabled(apControl.getWifiApConfiguration(),
-                    isTurnToOn);
-        }
-    }
-
     private class TestAsyncTask extends AsyncTask<String, Void, String> {
 
         @Override
         protected String doInBackground(String... urls) {
-            publishProgress();
             if (urls.length < 1 || urls[0] == null)
                 return null;
             URL url;
@@ -202,6 +129,11 @@ public class MainActivity extends AppCompatActivity {
                 return null;
             }
             return jsonResponse;
+        }
+
+        @Override
+        protected void onPostExecute(String jsonResponse) {
+            textView.setText(jsonResponse);
         }
     }
 
@@ -247,5 +179,4 @@ public class MainActivity extends AppCompatActivity {
         }
         return output.toString();
     }
-
 }
