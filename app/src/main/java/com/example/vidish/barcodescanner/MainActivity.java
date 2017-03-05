@@ -45,6 +45,7 @@ public class MainActivity extends AppCompatActivity {
         Button buttonConnect = (Button) findViewById(R.id.button_connect);
         Button scan = (Button) findViewById(R.id.scan);
         Button create = (Button) findViewById(R.id.create);
+        Button show = (Button) findViewById(R.id.show);
         textView = (TextView) findViewById(R.id.text);
         if(Intent.ACTION_VIEW.equals(getIntent().getAction()))
         {
@@ -107,7 +108,7 @@ public class MainActivity extends AppCompatActivity {
         create.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                FileOutputStream fOut = null;
+                FileOutputStream fOut;
                 try {
                     fOut = openFileOutput("file.txt",Context.MODE_PRIVATE);
                     OutputStreamWriter osw = new OutputStreamWriter(fOut);
@@ -121,6 +122,34 @@ public class MainActivity extends AppCompatActivity {
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
+            }
+        });
+        show.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                try {
+                    InputStream inputStream = openFileInput("file.txt");
+
+                    if ( inputStream != null ) {
+                        InputStreamReader inputStreamReader = new InputStreamReader(inputStream);
+                        BufferedReader bufferedReader = new BufferedReader(inputStreamReader);
+                        String receiveString = "";
+                        StringBuilder stringBuilder = new StringBuilder();
+
+                        while ( (receiveString = bufferedReader.readLine()) != null ) {
+                            stringBuilder.append(receiveString);
+                        }
+
+                        inputStream.close();
+                        textView.setText(stringBuilder.toString());
+                    }
+                }
+                catch (FileNotFoundException e) {
+                    Log.e("login activity", "File not found: " + e.toString());
+                } catch (IOException e) {
+                    Log.e("login activity", "Can not read file: " + e.toString());
+                }
+
             }
         });
     }
