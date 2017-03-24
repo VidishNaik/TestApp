@@ -1,7 +1,10 @@
 package com.example.vidish.barcodescanner;
 
+import android.app.ProgressDialog;
 import android.content.Context;
 import android.content.Intent;
+import android.database.Cursor;
+import android.database.sqlite.SQLiteDatabase;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Environment;
@@ -38,6 +41,7 @@ public class MainActivity extends AppCompatActivity {
     List<Movies> list;
     final int movies_count = 6020;
     int count = 0;
+    public static SQLiteDatabase db;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -46,6 +50,14 @@ public class MainActivity extends AppCompatActivity {
         i = 1;
         list = new ArrayList<>();
 
+        db = openOrCreateDatabase("Movies",MODE_PRIVATE,null);
+        db.execSQL("CREATE TABLE IF NOT EXISTS movie (id int,title varchar);");
+        db.execSQL("insert into movie values (5,'DONE');");
+        db.execSQL("insert into movie values (6,'DONE HOGAYA');");
+        db.execSQL("insert into movie values (7,'HOGAYA');");
+
+        Cursor result = db.rawQuery("select * from movie where title like 'DONE%'",null);
+        result.moveToFirst();
         Button scan = (Button) findViewById(R.id.scan);
         Button create = (Button) findViewById(R.id.create);
         Button show = (Button) findViewById(R.id.show);
@@ -54,11 +66,17 @@ public class MainActivity extends AppCompatActivity {
         {
             Toast.makeText(MainActivity.this, getIntent().getData().getPathSegments().get(1) + "", Toast.LENGTH_SHORT).show();
         }
-//        final String magnet;
-//        magnet = "magnet:?xt=urn:btih:33EA48144377098EECD8F5A1431BC98A60F5B3A8&dn=A Street Cat Named Bob (2016)" +
-//                "&tr=udp://open.demonii.com:1337/announce&tr=udp://tracker.openbittorrent.com:80";
-
-
+        String abc = "";
+//        while(!result.isLast())
+//        {
+//            abc = abc + result.getInt(0) + " " + result.getString(1);
+//        }
+        for(int i = 0; i < result.getCount() ; i = i + 2) {
+            abc = abc + result.getInt(i%2) + " " + result.getString((i+1)%2);
+            result.moveToNext();
+        }
+        textView.setText(abc + "Count : " + result.getCount());
+        result.close();
         scan.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -120,8 +138,10 @@ public class MainActivity extends AppCompatActivity {
 
     private class TestAsyncTask extends AsyncTask<String, Void, String> {
 
+        ProgressDialog progressDialog = new ProgressDialog(MainActivity.this);
         @Override
         protected String doInBackground(String... urls) {
+            publishProgress();
             if (urls.length < 1 || urls[0] == null)
                 return null;
             URL url;
@@ -144,17 +164,29 @@ public class MainActivity extends AppCompatActivity {
         }
 
         @Override
+        protected void onProgressUpdate(Void... values) {
+            progressDialog.setProgressStyle(ProgressDialog.STYLE_SPINNER);
+            progressDialog.setIndeterminate(true);
+            progressDialog.setTitle("Fetching data");
+            progressDialog.setMessage("This may take upto 2 minutes depending on your Internet Connection.");
+            progressDialog.setCancelable(false);
+            progressDialog.show();
+        }
+
+        @Override
         protected void onPostExecute(String jsonResponse) {
             extractMovies(jsonResponse);
             count = count + 50;
             if(count < movies_count)
             {
+                Toast.makeText(MainActivity.this, "Page no : " + i, Toast.LENGTH_SHORT).show();
                 i++;
                 testAsyncTask = new TestAsyncTask();
                 testAsyncTask.execute("https://yts.ag/api/v2/list_movies.json?limit=50&page="+i);
             }
             else
                 textView.setText("Size = " + list.size() );
+            progressDialog.dismiss();
         }
     }
 

@@ -32,5 +32,4 @@ dependencies {
     compile 'com.journeyapps:zxing-android-embedded:3.0.2@aar'
     compile 'com.android.support:design:25.2.0'
     testCompile 'org.testng:testng:6.9.6'
-    compile 'com.facebook.android:facebook-android-sdk:[4,5)'
 }
