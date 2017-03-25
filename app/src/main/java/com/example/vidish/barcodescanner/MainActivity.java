@@ -1,7 +1,6 @@
 package com.example.vidish.barcodescanner;
 
 import android.app.ProgressDialog;
-import android.content.Context;
 import android.content.Intent;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
@@ -20,7 +19,6 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.BufferedReader;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -51,13 +49,9 @@ public class MainActivity extends AppCompatActivity {
         list = new ArrayList<>();
 
         db = openOrCreateDatabase("Movies",MODE_PRIVATE,null);
-        db.execSQL("CREATE TABLE IF NOT EXISTS movie (id int,title varchar);");
-        db.execSQL("insert into movie values (5,'DONE');");
-        db.execSQL("insert into movie values (6,'DONE HOGAYA');");
-        db.execSQL("insert into movie values (7,'HOGAYA');");
+//        db.execSQL("DROP TABLE IF EXISTS movie;");
+//        db.execSQL("CREATE TABLE IF NOT EXISTS movie (id int,title varchar);");
 
-        Cursor result = db.rawQuery("select * from movie where title like 'DONE%'",null);
-        result.moveToFirst();
         Button scan = (Button) findViewById(R.id.scan);
         Button create = (Button) findViewById(R.id.create);
         Button show = (Button) findViewById(R.id.show);
@@ -66,17 +60,6 @@ public class MainActivity extends AppCompatActivity {
         {
             Toast.makeText(MainActivity.this, getIntent().getData().getPathSegments().get(1) + "", Toast.LENGTH_SHORT).show();
         }
-        String abc = "";
-//        while(!result.isLast())
-//        {
-//            abc = abc + result.getInt(0) + " " + result.getString(1);
-//        }
-        for(int i = 0; i < result.getCount() ; i = i + 2) {
-            abc = abc + result.getInt(i%2) + " " + result.getString((i+1)%2);
-            result.moveToNext();
-        }
-        textView.setText(abc + "Count : " + result.getCount());
-        result.close();
         scan.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -90,7 +73,7 @@ public class MainActivity extends AppCompatActivity {
             public void onClick(View v) {
                 FileOutputStream fOut;
                 try {
-                    fOut = openFileOutput("file.txt",Context.MODE_PRIVATE);
+                    fOut = openFileOutput("file.txt", MODE_PRIVATE);
                     OutputStreamWriter osw = new OutputStreamWriter(fOut);
                     for(int i = 0; i < list.size() ; i++)
                         osw.write(list.get(i).getId() + ",");
@@ -98,9 +81,7 @@ public class MainActivity extends AppCompatActivity {
                     osw.close();
                     Toast.makeText(MainActivity.this, "HOGAYA", Toast.LENGTH_SHORT).show();
                     textView.setText(Environment.getDataDirectory().toString());
-                } catch (FileNotFoundException e) {
-                    e.printStackTrace();
-                } catch (IOException e) {
+                } catch (Exception e) {
                     e.printStackTrace();
                 }
             }
@@ -108,29 +89,13 @@ public class MainActivity extends AppCompatActivity {
         show.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                try {
-                    InputStream inputStream = openFileInput("file.txt");
-
-                    if ( inputStream != null ) {
-                        InputStreamReader inputStreamReader = new InputStreamReader(inputStream);
-                        BufferedReader bufferedReader = new BufferedReader(inputStreamReader);
-                        String receiveString = "";
-                        StringBuilder stringBuilder = new StringBuilder();
-
-                        while ( (receiveString = bufferedReader.readLine()) != null ) {
-                            stringBuilder.append(receiveString);
-                        }
-
-                        inputStream.close();
-                        textView.setText(stringBuilder.toString());
-                    }
-                }
-                catch (FileNotFoundException e) {
-                    Log.e("login activity", "File not found: " + e.toString());
-                } catch (IOException e) {
-                    Log.e("login activity", "Can not read file: " + e.toString());
-                }
-
+                Cursor result = db.rawQuery("SELECT * from movie where id = 4693",null);
+                result.moveToFirst();
+                if(result.getCount() > 0)
+                    textView.setText(result.getInt(0)+" "+result.getString(1));
+                else
+                    textView.setText("NOT FOUND");
+                result.close();
             }
         });
     }
@@ -283,6 +248,7 @@ public class MainActivity extends AppCompatActivity {
                 {
                     list.add(new Movies(id,imdb,title,slug,rating,runtime,genres,description,youtube,cover,torrentList.get(0),torrentList.get(1),torrentList.get(2)));
                 }
+                db.execSQL("INSERT INTO movie values (" + id + ",'" + title.replace("'","''") + "')");
                 Log.v("MainActivity","ID = "+ id);
             }
 
