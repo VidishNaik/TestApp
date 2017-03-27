@@ -1,24 +1,45 @@
 package com.example.vidish.barcodescanner;
 
 import android.app.ProgressDialog;
+import android.app.SearchManager;
+import android.app.SearchableInfo;
+import android.content.ContentValues;
+import android.content.Context;
 import android.content.Intent;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Environment;
 import android.support.v7.app.AppCompatActivity;
+import android.support.v7.widget.SearchView;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.util.Log;
+import android.view.Menu;
+import android.view.MenuInflater;
+import android.view.MenuItem;
 import android.view.View;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.EditText;
+import android.widget.ImageView;
+import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
+
+import com.android.volley.VolleyError;
+import com.android.volley.toolbox.ImageLoader;
 
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -31,7 +52,9 @@ import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.List;
 
-public class MainActivity extends AppCompatActivity {
+import static android.content.ContentValues.TAG;
+
+public class MainActivity extends AppCompatActivity implements SearchView.OnQueryTextListener{
 
     TextView textView;
     int i;
@@ -40,6 +63,10 @@ public class MainActivity extends AppCompatActivity {
     final int movies_count = 6020;
     int count = 0;
     public static SQLiteDatabase db;
+    private SearchView mSearchView;
+    ListView listView;
+    EditText editText;
+    ImageView image;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -49,12 +76,16 @@ public class MainActivity extends AppCompatActivity {
         list = new ArrayList<>();
 
         db = openOrCreateDatabase("Movies",MODE_PRIVATE,null);
-//        db.execSQL("DROP TABLE IF EXISTS movie;");
-//        db.execSQL("CREATE TABLE IF NOT EXISTS movie (id int,title varchar);");
+        //db.execSQL("DROP TABLE IF EXISTS movie;");
+        db.execSQL("CREATE TABLE IF NOT EXISTS movie (id int primary key,title varchar,image BLOB);");
+        //TODO id,imdb_code,title,slug,year,rating,image
+        listView = (ListView) findViewById(R.id.list2);
 
-        Button scan = (Button) findViewById(R.id.scan);
+        editText = (EditText) findViewById(R.id.edittext);
+        Button scan = (Button) findViewById(R.id.button_scan);
         Button create = (Button) findViewById(R.id.create);
         Button show = (Button) findViewById(R.id.show);
+        image = (ImageView) findViewById(R.id.imageview);
         textView = (TextView) findViewById(R.id.text);
         if(Intent.ACTION_VIEW.equals(getIntent().getAction()))
         {
@@ -89,17 +120,142 @@ public class MainActivity extends AppCompatActivity {
         show.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                Cursor result = db.rawQuery("SELECT * from movie where id = 4693",null);
+                Cursor result = db.rawQuery("SELECT * from movie where id = 12",null);
                 result.moveToFirst();
                 if(result.getCount() > 0)
-                    textView.setText(result.getInt(0)+" "+result.getString(1));
+                    textView.setText(result.getString(1));
                 else
                     textView.setText("NOT FOUND");
                 result.close();
             }
         });
+        editText.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {
+                if(s.toString().equals(""))
+                {
+                    textView.setText("");
+                    return;
+                }
+                else if(s.length() > 2)
+                {
+                    Cursor result = db.rawQuery("SELECT image from movie where id  = "+editText.getText().toString()+";", null);
+                    result.moveToFirst();
+                    if (result.getCount() > 0) {
+                        image.setImageBitmap(getImage(result.getBlob(0)));
+                    } else
+                        textView.setText("NOT FOUND");
+                    result.close();
+                }
+                else
+                    textView.setText("");
+            }
+        });
     }
 
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        super.onCreateOptionsMenu(menu);
+        MenuInflater inflater = getMenuInflater();
+        inflater.inflate(R.menu.menu, menu);
+
+        // Associate searchable configuration with the SearchView
+        MenuItem searchItem = menu.findItem(R.id.action_search);
+        mSearchView = (SearchView) searchItem.getActionView();
+        mSearchView.setOnQueryTextFocusChangeListener(new View.OnFocusChangeListener() {
+            @Override
+            public void onFocusChange(View v, boolean hasFocus) {
+                //mSearchView.clearFocus();
+                mSearchView.setQuery("",true);
+            }
+        });
+        setupSearchView(searchItem);
+        return true;
+    }
+
+    @Override
+    public boolean onQueryTextSubmit(String query) {
+        return false;
+    }
+
+    @Override
+    public boolean onQueryTextChange(String newText) {
+        if (newText.length() < 1)
+        {
+            listView.setVisibility(View.INVISIBLE);
+            editText.setVisibility(View.VISIBLE);
+            return true;
+        }
+        listView.setVisibility(View.VISIBLE);
+        editText.setVisibility(View.INVISIBLE);
+        Cursor result = db.rawQuery("SELECT title from movie where title like '%" + newText.replace("'", "''") + "%'", null);
+        result.moveToFirst();
+        if (result.getCount() > 0) {
+            final String[] s = new String[result.getCount()];
+            for (int i = 0; i < result.getCount(); i++) {
+                s[i] = result.getString(0);
+                result.moveToNext();
+            }
+            ArrayAdapter<String> arrayAdapter = new ArrayAdapter<String>(this,R.layout.activity_list,s);
+            listView.setAdapter(arrayAdapter);
+            listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+                @Override
+                public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+                    Toast.makeText(MainActivity.this, s[position], Toast.LENGTH_SHORT).show();
+                }
+            });
+        }
+        else
+        {
+            String[] s = {"No Movie Found"};
+            ArrayAdapter<String> arrayAdapter = new ArrayAdapter<String>(this,R.layout.activity_list,s);
+            ListView listView = (ListView) findViewById(R.id.list2);
+            listView.setAdapter(arrayAdapter);
+        }
+        result.close();
+        return false;
+    }
+
+
+    private void setupSearchView(MenuItem searchItem) {
+
+        if (isAlwaysExpanded()) {
+            mSearchView.setIconifiedByDefault(false);
+        } else {
+            searchItem.setShowAsActionFlags(MenuItem.SHOW_AS_ACTION_IF_ROOM
+                    | MenuItem.SHOW_AS_ACTION_COLLAPSE_ACTION_VIEW);
+        }
+
+        SearchManager searchManager = (SearchManager) getSystemService(Context.SEARCH_SERVICE);
+        if (searchManager != null) {
+            List<SearchableInfo> searchables = searchManager.getSearchablesInGlobalSearch();
+
+            SearchableInfo info = searchManager.getSearchableInfo(getComponentName());
+            for (SearchableInfo inf : searchables) {
+                if (inf.getSuggestAuthority() != null
+                        && inf.getSuggestAuthority().startsWith("applications")) {
+                    info = inf;
+                }
+            }
+            mSearchView.setSearchableInfo(info);
+        }
+
+        mSearchView.setOnQueryTextListener(this);
+    }
+
+    protected boolean isAlwaysExpanded() {
+        return false;
+    }
 
     private class TestAsyncTask extends AsyncTask<String, Void, String> {
 
@@ -150,8 +306,9 @@ public class MainActivity extends AppCompatActivity {
                 testAsyncTask.execute("https://yts.ag/api/v2/list_movies.json?limit=50&page="+i);
             }
             else
-                textView.setText("Size = " + list.size() );
-            progressDialog.dismiss();
+                textView.setText(""+list.size());
+            if(progressDialog.isShowing())
+                progressDialog.dismiss();
         }
     }
 
@@ -222,7 +379,7 @@ public class MainActivity extends AppCompatActivity {
                 }
                 String description = arrayObject.getString("description_full");
                 String youtube = arrayObject.getString("yt_trailer_code");
-                String cover = arrayObject.getString("large_cover_image");
+                String cover = arrayObject.getString("medium_cover_image");
                 JSONArray torrents = arrayObject.getJSONArray("torrents");
                 List<Torrent> torrentList = new ArrayList<>();
                 for(int j = 0 ; j < torrents.length() ; j++)
@@ -248,13 +405,48 @@ public class MainActivity extends AppCompatActivity {
                 {
                     list.add(new Movies(id,imdb,title,slug,rating,runtime,genres,description,youtube,cover,torrentList.get(0),torrentList.get(1),torrentList.get(2)));
                 }
-                db.execSQL("INSERT INTO movie values (" + id + ",'" + title.replace("'","''") + "')");
-                Log.v("MainActivity","ID = "+ id);
-            }
-
-
+                volleyImageLoader(cover,getApplicationContext(),id,title);
+                }
         } catch (JSONException e) {
             Log.v("MainActivity","JSONError " + e);
         }
+    }
+
+
+    public static synchronized void volleyImageLoader(String url, final Context context, final String id, final String title){
+        ImageLoader imageLoader = AppSingleton.getInstance(context).getImageLoader();
+        imageLoader.get(url, new ImageLoader.ImageListener() {
+            @Override
+            public void onErrorResponse(VolleyError error) {
+                Log.e(TAG, "Image Load Error: " + error.getMessage());
+            }
+
+            @Override
+            public void onResponse(ImageLoader.ImageContainer response, boolean arg1) {
+                if (response.getBitmap() != null) {
+                    try {
+                        ContentValues cv = new ContentValues();
+                        cv.put("id",id);
+                        Log.v("MAINACIVITY",id);
+                        cv.put("title",title);
+                        cv.put("image",getImageBytes(response.getBitmap()));
+                        db.insertOrThrow("movie",null,cv);
+                    }catch (Exception e)
+                    {
+                        Toast.makeText(context, "SQLERROR", Toast.LENGTH_SHORT).show();
+                        e.printStackTrace();}
+                }
+            }
+        });
+    }
+
+    public static byte[] getImageBytes(Bitmap bitmap) {
+        ByteArrayOutputStream stream = new ByteArrayOutputStream();
+        bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream);
+        return stream.toByteArray();
+    }
+
+    public static Bitmap getImage(byte[] image) {
+        return BitmapFactory.decodeByteArray(image, 0, image.length);
     }
 }
