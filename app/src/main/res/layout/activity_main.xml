@@ -21,7 +21,8 @@
         android:id="@+id/edittext"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="Enter ID." />
+        android:hint="Enter ID."
+        android:inputType="number"/>
     <Button
         android:id="@+id/button_scan"
         android:layout_width="wrap_content"
@@ -48,6 +49,7 @@
     <ImageView
         android:id="@+id/imageview"
         android:layout_width="wrap_content"
-        android:layout_height="wrap_content" />
+        android:layout_height="wrap_content"
+        android:layout_below="@id/text"/>
 
 </RelativeLayout>

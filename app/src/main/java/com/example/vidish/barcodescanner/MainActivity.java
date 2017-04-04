@@ -8,8 +8,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Environment;
@@ -39,7 +37,6 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.BufferedReader;
-import java.io.ByteArrayOutputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -60,13 +57,15 @@ public class MainActivity extends AppCompatActivity implements SearchView.OnQuer
     int i;
     TestAsyncTask testAsyncTask;
     List<Movies> list;
-    final int movies_count = 6020;
+    final int movies_count = 6063;
     int count = 0;
     public static SQLiteDatabase db;
     private SearchView mSearchView;
     ListView listView;
     EditText editText;
-    ImageView image;
+    static ImageView image;
+    ProgressDialog progressDialog;
+    Button scan,create,show;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -77,14 +76,25 @@ public class MainActivity extends AppCompatActivity implements SearchView.OnQuer
 
         db = openOrCreateDatabase("Movies",MODE_PRIVATE,null);
         //db.execSQL("DROP TABLE IF EXISTS movie;");
-        db.execSQL("CREATE TABLE IF NOT EXISTS movie (id int primary key,title varchar,image BLOB);");
+        db.execSQL("CREATE TABLE IF NOT EXISTS movie (id int primary key,title varchar,image_url varchar);");
         //TODO id,imdb_code,title,slug,year,rating,image
+
+//        testAsyncTask = new TestAsyncTask();
+//        testAsyncTask.execute("https://yts.ag/api/v2/list_movies.json?limit=50&page="+i);
+//        progressDialog = new ProgressDialog(MainActivity.this);
+//        progressDialog.setProgressStyle(ProgressDialog.STYLE_SPINNER);
+//        progressDialog.setIndeterminate(true);
+//        progressDialog.setTitle("Fetching data");
+//        progressDialog.setMessage("This may take upto 5 minutes depending on your Internet Connection.");
+//        progressDialog.setCancelable(false);
+//        progressDialog.show();
+
         listView = (ListView) findViewById(R.id.list2);
 
         editText = (EditText) findViewById(R.id.edittext);
-        Button scan = (Button) findViewById(R.id.button_scan);
-        Button create = (Button) findViewById(R.id.create);
-        Button show = (Button) findViewById(R.id.show);
+        scan = (Button) findViewById(R.id.button_scan);
+        create = (Button) findViewById(R.id.create);
+        show = (Button) findViewById(R.id.show);
         image = (ImageView) findViewById(R.id.imageview);
         textView = (TextView) findViewById(R.id.text);
         if(Intent.ACTION_VIEW.equals(getIntent().getAction()))
@@ -147,14 +157,17 @@ public class MainActivity extends AppCompatActivity implements SearchView.OnQuer
                     textView.setText("");
                     return;
                 }
-                else if(s.length() > 2)
+                else if(s.length() > 0)
                 {
-                    Cursor result = db.rawQuery("SELECT image from movie where id  = "+editText.getText().toString()+";", null);
+                    Cursor result = db.rawQuery("SELECT title,image_url from movie where id  = "+editText.getText().toString()+";", null);
                     result.moveToFirst();
                     if (result.getCount() > 0) {
-                        image.setImageBitmap(getImage(result.getBlob(0)));
+                        volleyImageLoader(result.getString(1),MainActivity.this);
                     } else
+                    {
                         textView.setText("NOT FOUND");
+                        image.setImageBitmap(null);
+                    }
                     result.close();
                 }
                 else
@@ -192,12 +205,10 @@ public class MainActivity extends AppCompatActivity implements SearchView.OnQuer
     public boolean onQueryTextChange(String newText) {
         if (newText.length() < 1)
         {
-            listView.setVisibility(View.INVISIBLE);
-            editText.setVisibility(View.VISIBLE);
+            changeView(1);
             return true;
         }
-        listView.setVisibility(View.VISIBLE);
-        editText.setVisibility(View.INVISIBLE);
+        changeView(0);
         Cursor result = db.rawQuery("SELECT title from movie where title like '%" + newText.replace("'", "''") + "%'", null);
         result.moveToFirst();
         if (result.getCount() > 0) {
@@ -224,6 +235,27 @@ public class MainActivity extends AppCompatActivity implements SearchView.OnQuer
         }
         result.close();
         return false;
+    }
+
+    private void changeView(int i) {
+        if(i == 1)
+        {
+            listView.setVisibility(View.INVISIBLE);
+            image.setVisibility(View.VISIBLE);
+            scan.setVisibility(View.VISIBLE);
+            create.setVisibility(View.VISIBLE);
+            show.setVisibility(View.VISIBLE);
+            editText.setVisibility(View.VISIBLE);
+        }
+        else
+        {
+            listView.setVisibility(View.VISIBLE);
+            image.setVisibility(View.INVISIBLE);
+            scan.setVisibility(View.INVISIBLE);
+            create.setVisibility(View.INVISIBLE);
+            show.setVisibility(View.INVISIBLE);
+            editText.setVisibility(View.INVISIBLE);
+        }
     }
 
 
@@ -259,10 +291,8 @@ public class MainActivity extends AppCompatActivity implements SearchView.OnQuer
 
     private class TestAsyncTask extends AsyncTask<String, Void, String> {
 
-        ProgressDialog progressDialog = new ProgressDialog(MainActivity.this);
         @Override
         protected String doInBackground(String... urls) {
-            publishProgress();
             if (urls.length < 1 || urls[0] == null)
                 return null;
             URL url;
@@ -273,7 +303,6 @@ public class MainActivity extends AppCompatActivity implements SearchView.OnQuer
                 return null;
             }
             String jsonResponse = "";
-            publishProgress();
             try {
                 jsonResponse = makeHttpRequest(url);
             } catch (IOException e) {
@@ -283,32 +312,22 @@ public class MainActivity extends AppCompatActivity implements SearchView.OnQuer
             }
             return jsonResponse;
         }
-
-        @Override
-        protected void onProgressUpdate(Void... values) {
-            progressDialog.setProgressStyle(ProgressDialog.STYLE_SPINNER);
-            progressDialog.setIndeterminate(true);
-            progressDialog.setTitle("Fetching data");
-            progressDialog.setMessage("This may take upto 2 minutes depending on your Internet Connection.");
-            progressDialog.setCancelable(false);
-            progressDialog.show();
-        }
-
         @Override
         protected void onPostExecute(String jsonResponse) {
             extractMovies(jsonResponse);
             count = count + 50;
             if(count < movies_count)
             {
-                Toast.makeText(MainActivity.this, "Page no : " + i, Toast.LENGTH_SHORT).show();
+                textView.setText(""+i+" of " +(int) Math.ceil(movies_count/50)+" pages");
                 i++;
                 testAsyncTask = new TestAsyncTask();
                 testAsyncTask.execute("https://yts.ag/api/v2/list_movies.json?limit=50&page="+i);
             }
-            else
-                textView.setText(""+list.size());
-            if(progressDialog.isShowing())
+            if(progressDialog.isShowing() && count >= movies_count)
+            {
                 progressDialog.dismiss();
+                textView.setText("HOGAYA");
+            }
         }
     }
 
@@ -366,46 +385,13 @@ public class MainActivity extends AppCompatActivity implements SearchView.OnQuer
             {
                 JSONObject arrayObject=movies.getJSONObject(i);
                 String id = arrayObject.getString("id");
-                String imdb = arrayObject.getString("imdb_code");
                 String title = arrayObject.getString("title");
-                String slug = arrayObject.getString("slug");
-                String rating = arrayObject.getString("rating");
-                String runtime = arrayObject.getString("runtime");
-                JSONArray genre = arrayObject.getJSONArray("genres");
-                String[] genres = new String[genre.length()];
-                for(int j = 0; j < genres.length ; j++)
-                {
-                    genres[j] = (String) genre.get(j);
-                }
-                String description = arrayObject.getString("description_full");
-                String youtube = arrayObject.getString("yt_trailer_code");
-                String cover = arrayObject.getString("medium_cover_image");
-                JSONArray torrents = arrayObject.getJSONArray("torrents");
-                List<Torrent> torrentList = new ArrayList<>();
-                for(int j = 0 ; j < torrents.length() ; j++)
-                {
-                    JSONObject torobj = torrents.getJSONObject(j);
-                    String url = torobj.getString("url");
-                    String hash = torobj.getString("hash");
-                    String quality = torobj.getString("quality");
-                    String seeds = torobj.getString("seeds");
-                    String peers = torobj.getString("peers");
-                    String size = torobj.getString("size");
-                    torrentList.add(new Torrent(url,hash,quality,seeds,peers,size));
-                }
-                if(torrentList.size() == 1)
-                {
-                    list.add(new Movies(id,imdb,title,slug,rating,runtime,genres,description,youtube,cover,torrentList.get(0),null,null));
-                }
-                else if(torrentList.size() == 2)
-                {
-                    list.add(new Movies(id,imdb,title,slug,rating,runtime,genres,description,youtube,cover,torrentList.get(0),torrentList.get(1),null));
-                }
-                else if(torrentList.size() == 3)
-                {
-                    list.add(new Movies(id,imdb,title,slug,rating,runtime,genres,description,youtube,cover,torrentList.get(0),torrentList.get(1),torrentList.get(2)));
-                }
-                volleyImageLoader(cover,getApplicationContext(),id,title);
+                String url = arrayObject.getString("medium_cover_image");
+                ContentValues cv = new ContentValues();
+                cv.put("id",id);
+                cv.put("title",title);
+                cv.put("image_url",url);
+                db.insertOrThrow("movie",null,cv);
                 }
         } catch (JSONException e) {
             Log.v("MainActivity","JSONError " + e);
@@ -413,7 +399,7 @@ public class MainActivity extends AppCompatActivity implements SearchView.OnQuer
     }
 
 
-    public static synchronized void volleyImageLoader(String url, final Context context, final String id, final String title){
+    public static synchronized void volleyImageLoader(String url, final Context context){
         ImageLoader imageLoader = AppSingleton.getInstance(context).getImageLoader();
         imageLoader.get(url, new ImageLoader.ImageListener() {
             @Override
@@ -424,29 +410,9 @@ public class MainActivity extends AppCompatActivity implements SearchView.OnQuer
             @Override
             public void onResponse(ImageLoader.ImageContainer response, boolean arg1) {
                 if (response.getBitmap() != null) {
-                    try {
-                        ContentValues cv = new ContentValues();
-                        cv.put("id",id);
-                        Log.v("MAINACIVITY",id);
-                        cv.put("title",title);
-                        cv.put("image",getImageBytes(response.getBitmap()));
-                        db.insertOrThrow("movie",null,cv);
-                    }catch (Exception e)
-                    {
-                        Toast.makeText(context, "SQLERROR", Toast.LENGTH_SHORT).show();
-                        e.printStackTrace();}
+                    image.setImageBitmap(response.getBitmap());
                 }
             }
         });
-    }
-
-    public static byte[] getImageBytes(Bitmap bitmap) {
-        ByteArrayOutputStream stream = new ByteArrayOutputStream();
-        bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream);
-        return stream.toByteArray();
-    }
-
-    public static Bitmap getImage(byte[] image) {
-        return BitmapFactory.decodeByteArray(image, 0, image.length);
     }
 }
